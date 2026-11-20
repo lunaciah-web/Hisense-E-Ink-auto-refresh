@@ -102,8 +102,13 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
         binding.btnMonitorStatusOn.isEnabled = isAccessibilityServiceEnabled && !prefs.serviceSwitch
         binding.btnMonitorStatusOff.isEnabled = isAccessibilityServiceEnabled && prefs.serviceSwitch
-        binding.etInterval.text =
-            Editable.Factory.getInstance().newEditable(prefs.interval.toString())
+        binding.rgInterval.check(
+            when (prefs.interval) {
+                5 -> R.id.rb_interval_5
+                20 -> R.id.rb_interval_20
+                else -> R.id.rb_interval_10
+            }
+        )
         binding.etDelay.text =
             Editable.Factory.getInstance().newEditable(prefs.delayTime.toString())
         binding.etIgnore.text =
@@ -190,7 +195,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 // 监控所有应用开启时才校验并保存全局触发间隔/延迟；关闭时由应用列表单独配置
                 val monitorAll = binding.cbMonitorGlobal.isChecked
                 if (
-                    (monitorAll && TextUtils.isEmpty(binding.etInterval.text)) ||
+                    (monitorAll && (binding.rgInterval.checkedRadioButtonId == -1)) ||
                     (monitorAll && TextUtils.isEmpty(binding.etDelay.text)) ||
                     TextUtils.isEmpty(binding.etIgnore.text) ||
                     TextUtils.isEmpty(binding.etPeriod.text)
@@ -205,7 +210,11 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 }
                 try {
                     if (monitorAll) {
-                        prefs.interval = binding.etInterval.text.toString().toInt()
+                        prefs.interval = when (binding.rgInterval.checkedRadioButtonId) {
+                            R.id.rb_interval_5 -> 5
+                            R.id.rb_interval_20 -> 20
+                            else -> 10
+                        }
                         prefs.delayTime = binding.etDelay.text.toString().toInt()
                     }
                     prefs.ignoreTime = binding.etIgnore.text.toString().toInt()
