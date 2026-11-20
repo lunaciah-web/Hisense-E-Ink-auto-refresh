@@ -22,10 +22,10 @@ android {
 
     defaultConfig {
         applicationId = "com.liziwa.hisense_autorefresh"
-        minSdk = 28
+        minSdk = 27
         targetSdk = 30
-        versionCode = 6
-        versionName = "1.3.2"
+        versionCode = 7
+        versionName = "1.3.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -33,8 +33,8 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = true   // 启用代码混淆
-            isShrinkResources = true // 启用资源压缩
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -53,11 +53,9 @@ android {
     }
 
     lint {
-        // 禁用 ExpiredTargetSdkVersion 检查
         disable.add("ExpiredTargetSdkVersion")
     }
 
-    // 修复文件名修改
     applicationVariants.all {
         val variant = this
         variant.outputs.forEach { output ->
@@ -73,13 +71,11 @@ android {
     }
 }
 
-// 获取时间戳的函数
 fun getDateTime(): String {
     return SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
 }
 
 dependencies {
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.appcompat)
