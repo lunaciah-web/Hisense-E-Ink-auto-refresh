@@ -141,12 +141,33 @@
                 app:layout_constraintLeft_toLeftOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/tv_monitor_global"/>
 
-            <EditText
-                android:id="@+id/et_interval"
-                style="@style/defEditStyle"
+            <RadioGroup
+                android:id="@+id/rg_interval"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
                 app:layout_constraintBottom_toBottomOf="@id/tv_interval"
                 app:layout_constraintRight_toRightOf="parent"
-                app:layout_constraintTop_toTopOf="@id/tv_interval" />
+                app:layout_constraintTop_toTopOf="@id/tv_interval">
+
+                <RadioButton
+                    android:id="@+id/rb_interval_5"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="5次" />
+
+                <RadioButton
+                    android:id="@+id/rb_interval_10"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="10次" />
+
+                <RadioButton
+                    android:id="@+id/rb_interval_20"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="20次" />
+            </RadioGroup>
 
             <TextView
                 android:id="@+id/tv_delay"
