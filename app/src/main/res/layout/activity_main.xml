@@ -183,7 +183,28 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="20次" />
+
+                <RadioButton
+                    android:id="@+id/rb_interval_custom"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/interval_custom" />
+
+                <RadioButton
+                    android:id="@+id/rb_interval_off"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/interval_off" />
             </RadioGroup>
+
+            <EditText
+                android:id="@+id/et_interval_custom"
+                style="@style/defEditStyle"
+                android:hint="@string/hint_custom_interval"
+                android:inputType="number"
+                android:visibility="gone"
+                app:layout_constraintTop_toBottomOf="@id/rg_interval"
+                app:layout_constraintRight_toRightOf="parent" />
 
             <TextView
                 android:id="@+id/tv_delay"
@@ -191,7 +212,7 @@
                 android:layout_marginTop="@dimen/space"
                 android:text="@string/tv_delay"
                 app:layout_constraintLeft_toLeftOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/tv_interval" />
+                app:layout_constraintTop_toBottomOf="@id/et_interval_custom" />
 
             <EditText
                 android:id="@+id/et_delay"
