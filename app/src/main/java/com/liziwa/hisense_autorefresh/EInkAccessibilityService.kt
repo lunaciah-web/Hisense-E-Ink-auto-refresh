@@ -517,6 +517,8 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
             stopPeriodicRefresh()
             return
         }
+        // 先安排下一轮；即使本次因刚刷新过而跳过，也不能让周期计时中断。
+        myHandler.sendEmptyMessageDelayed(MSG_PERIODIC_REFRESH, periodRefresh * 1000L)
         val now = SystemClock.elapsedRealtime()
         if (now - lastRefreshTime < PERIOD_REFRESH_DUPLICATE_MS) {
             XLog.d("周期刷新跳过: 距上次刷新 ${(now - lastRefreshTime)}ms < ${PERIOD_REFRESH_DUPLICATE_MS}ms")
