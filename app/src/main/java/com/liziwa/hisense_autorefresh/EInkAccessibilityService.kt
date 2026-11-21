@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
+import android.app.KeyguardManager
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
@@ -143,9 +144,12 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
         super.onCreate()
         XLog.d("无障碍服务创建")
         val filter = IntentFilter(ACTION_CONFIG_CHANGE)
-        // 监听屏幕息屏/亮屏，用于锁屏时重置计数
+        // 只在真正解鎖後恢復；亮屏但仍在鎖定畫面時繼續暫停。
         filter.addAction(Intent.ACTION_SCREEN_OFF)
         filter.addAction(Intent.ACTION_SCREEN_ON)
+        filter.addAction(Intent.ACTION_USER_PRESENT)
+        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        isScreenLocked = keyguard.isKeyguardLocked
         prefs = AppPreferences.getInstance(applicationContext)
         ContextCompat.registerReceiver(
             this,
@@ -168,9 +172,13 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
                     clickCount = 0
                     setReadingState(false)
                 }
-                // 亮屏解锁：重置锁屏态并重新安排周期刷新计时
+                // 僅亮屏不代表已解鎖：保持暫停。
                 Intent.ACTION_SCREEN_ON -> {
-                    XLog.d("屏幕亮屏（解锁），重置阅读态并重启周期刷新计时")
+                    XLog.d("屏幕亮起但尚未確認解鎖，繼續暫停自動刷新")
+                }
+                // USER_PRESENT 在使用者真正解鎖後發送。
+                Intent.ACTION_USER_PRESENT -> {
+                    XLog.d("使用者已解鎖，恢復自動刷新")
                     isScreenLocked = false
                     setReadingState(false)
                     reschedulePeriodicRefresh()
@@ -183,7 +191,9 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
         override fun handleMessage(msg: Message) {
             super.handleMessage(msg)
             if (msg.what == MSG_REFRESH_DISPLAY) {
-                Utils.refreshScreen(applicationContext)
+                if (serviceSwitch && !isScreenLocked) {
+                    Utils.refreshScreen(applicationContext)
+                }
             } else if (msg.what == MSG_DETECT_READING) {
                 detectReadingScreen()
             } else if (msg.what == MSG_PERIODIC_REFRESH) {
@@ -512,6 +522,8 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
     }
 
     fun userOperating() {
+        // 鎖定期間不累計頁數操作；真正解鎖後由 USER_PRESENT 恢復。
+        if (isScreenLocked) return
         if (packageName.equals(currentPackage)) return
         // 不以讀屏辨識結果阻擋操作計數：部分墨水屏閱讀器不提供完整無障礙文字，
         // 若依賴讀屏判斷會導致翻頁永遠無法累計。監控範圍仍由 isTarget 控制。
