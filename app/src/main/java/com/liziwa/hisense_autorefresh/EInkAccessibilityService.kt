@@ -231,7 +231,9 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
         // 配置服务：监听窗口切换与点击事件；FLAG_REQUEST_FILTER_KEY_EVENTS 用于接收按键
         val info = AccessibilityServiceInfo().apply {
             eventTypes =
-                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_VIEW_CLICKED
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
+                    AccessibilityEvent.TYPE_VIEW_CLICKED or
+                    AccessibilityEvent.TYPE_VIEW_SCROLLED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             notificationTimeout = 100
             flags = AccessibilityServiceInfo.DEFAULT or
@@ -285,8 +287,12 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
         if (!serviceSwitch) return
 
         try {
-            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                handleWindowStateChanged(event)
+            when (event.eventType) {
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> handleWindowStateChanged(event)
+                AccessibilityEvent.TYPE_VIEW_CLICKED,
+                AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
+                    if (monitorTouch && isTarget) userOperating()
+                }
             }
         } catch (e: Exception) {
             XLog.e("处理无障碍事件时出错", e)
@@ -507,20 +513,8 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
 
     fun userOperating() {
         if (packageName.equals(currentPackage)) return
-        // 开启自动识别且当前不在阅读界面时，跳过刷新统计，但累计操作次数：
-        // 同一 activity 内多个 fragment 切换时 TYPE_WINDOW_STATE_CHANGED 不会触发，
-        // 故累计达到一定次数后重新读屏识别，避免漏判真正的阅读界面。
-        if (autoDetectReading && !isReading) {
-            nonReadingOpCount++
-            XLog.d("userOperating: 非阅读界面，跳过统计（非阅读操作计数 nonReadingOpCount=$nonReadingOpCount）")
-            if (nonReadingOpCount >= NON_READING_REDETECT_COUNT) { // 达到阈值触发重新识别
-                nonReadingOpCount = 0
-                XLog.d("非阅读界面操作达 $NON_READING_REDETECT_COUNT 次，重新读屏识别界面")
-                myHandler.removeMessages(MSG_DETECT_READING)
-                myHandler.sendEmptyMessageDelayed(MSG_DETECT_READING, DETECT_DELAY_MS)
-            }
-            return
-        }
+        // 不以讀屏辨識結果阻擋操作計數：部分墨水屏閱讀器不提供完整無障礙文字，
+        // 若依賴讀屏判斷會導致翻頁永遠無法累計。監控範圍仍由 isTarget 控制。
         XLog.d("userOperating: ")
         // 计算有效触发阈值与延迟：监控所有应用时用全局配置，否则取该应用独立配置（缺省用默认值）
         val effInterval: Int
@@ -534,32 +528,29 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
             effDelay = cfg?.second ?: AppPreferences.DEFAULT_APP_DELAY
         }
         val currentTime = SystemClock.elapsedRealtime()
-        val timeDiff = currentTime - lastClickTime
-
-        // 过滤连续点击
-        if (timeDiff > ignoreTime) {
-            clickCount++
-
-            XLog.d("操作计数: $clickCount/$effInterval, 包名: $currentPackage")
-
-            if (clickCount >= effInterval) {
-                // 触发全局刷新
-                myHandler.removeMessages(MSG_REFRESH_DISPLAY)
-                myHandler.sendEmptyMessageDelayed(MSG_REFRESH_DISPLAY, effDelay.toLong())
-                // 记录刷新时间，供周期刷新 30s 去重判断；并清零计数
-                lastRefreshTime = SystemClock.elapsedRealtime()
-                clickCount = 0
-                XLog.d("触发全局刷新")
-            }
-
-            notificationUtils.showNotification(
-                getString(
-                    R.string.notification_text_detailed,
-                    effInterval - clickCount
-                ), true
-            )
-        }
+        // 將過短的重複事件合併，但不再使用預設 2 秒阻擋快速翻頁。
+        // 點擊、滑動及觸控可能對同一次操作送出多個事件，最多以 350ms 去重。
+        val debounceMs = ignoreTime.coerceIn(250, 350)
+        if (currentTime - lastClickTime < debounceMs) return
         lastClickTime = currentTime
+
+        clickCount++
+        XLog.d("操作计数: $clickCount/$effInterval, 包名: $currentPackage")
+
+        if (clickCount >= effInterval) {
+            myHandler.removeMessages(MSG_REFRESH_DISPLAY)
+            myHandler.sendEmptyMessageDelayed(MSG_REFRESH_DISPLAY, effDelay.toLong())
+            lastRefreshTime = SystemClock.elapsedRealtime()
+            clickCount = 0
+            XLog.d("触发全局刷新")
+        }
+
+        notificationUtils.showNotification(
+            getString(
+                R.string.notification_text_detailed,
+                effInterval - clickCount
+            ), true
+        )
     }
 
     private fun startForegroundNotification() {
