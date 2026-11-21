@@ -2,7 +2,7 @@ name: Build refresh APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'release/v1.3.7-lock-unlock' ]
   workflow_dispatch:
 
 permissions:
