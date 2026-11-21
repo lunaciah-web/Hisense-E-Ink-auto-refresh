@@ -61,4 +61,8 @@
     <string name="notification_desc_error">服務無法啟動，請點擊查看詳情</string>
     <string name="notification_text_detailed">%d次響應操作後刷新屏幕，點擊配置參數</string>
     <string name="tv_hide_background_task">在「最近使用程式」隱藏本應用</string>
+    <string name="interval_custom">自訂</string>
+    <string name="interval_off">關閉</string>
+    <string name="hint_custom_interval">輸入頁數</string>
+    <string name="error_custom_interval">請輸入大於 0 的整數頁數</string>
 </resources>
