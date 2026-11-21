@@ -24,8 +24,8 @@ android {
         applicationId = "com.liziwa.hisense_autorefresh"
         minSdk = 27
         targetSdk = 30
-        versionCode = 9
-        versionName = "1.3.5"
+        versionCode = 11
+        versionName = "1.3.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
