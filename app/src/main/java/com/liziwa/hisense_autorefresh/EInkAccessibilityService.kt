@@ -527,6 +527,9 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
             effInterval = cfg?.first ?: AppPreferences.DEFAULT_APP_INTERVAL
             effDelay = cfg?.second ?: AppPreferences.DEFAULT_APP_DELAY
         }
+        // 間隔設為 0 時只停用「依操作次數刷新」，週期刷新仍由獨立計時器運作。
+        if (effInterval <= 0) return
+
         val currentTime = SystemClock.elapsedRealtime()
         // 將過短的重複事件合併，但不再使用預設 2 秒阻擋快速翻頁。
         // 點擊、滑動及觸控可能對同一次操作送出多個事件，最多以 350ms 去重。
