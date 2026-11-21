@@ -53,6 +53,10 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         binding.btnMonitorStatusOn.setOnClickListener { this.onClick(it) }
         binding.btnMonitorStatusOff.setOnClickListener { this.onClick(it) }
         binding.cbMonitorTouch.setOnClickListener { this.onClick(it) }
+        binding.rgInterval.setOnCheckedChangeListener { _, checkedId ->
+            binding.etIntervalCustom.visibility =
+                if (checkedId == R.id.rb_interval_custom) View.VISIBLE else View.GONE
+        }
         binding.cbMonitorKey.setOnClickListener { this.onClick(it) }
         binding.cbMonitorGlobal.setOnClickListener { this.onClick(it) }
         binding.cbAutoDetectReading.setOnClickListener { this.onClick(it) }
@@ -115,6 +119,20 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             Editable.Factory.getInstance().newEditable(prefs.ignoreTime.toString())
         binding.etPeriod.text =
             Editable.Factory.getInstance().newEditable(prefs.periodRefresh.toString())
+        val interval = prefs.interval
+        binding.rgInterval.check(
+            when (interval) {
+                0 -> R.id.rb_interval_off
+                5 -> R.id.rb_interval_5
+                10 -> R.id.rb_interval_10
+                20 -> R.id.rb_interval_20
+                else -> R.id.rb_interval_custom
+            }
+        )
+        binding.etIntervalCustom.text =
+            Editable.Factory.getInstance().newEditable(if (interval !in listOf(0, 5, 10, 20)) interval.toString() else "")
+        binding.etIntervalCustom.visibility =
+            if (interval !in listOf(0, 5, 10, 20)) View.VISIBLE else View.GONE
         binding.cbMonitorTouch.isChecked = prefs.monitorTouch
         binding.cbMonitorKey.isChecked = prefs.monitorKey
         binding.cbAutoDetectReading.isChecked = prefs.autoDetectReading
@@ -210,8 +228,22 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 try {
                     if (monitorAll) {
                         prefs.interval = when (binding.rgInterval.checkedRadioButtonId) {
+                            R.id.rb_interval_off -> 0
                             R.id.rb_interval_5 -> 5
+                            R.id.rb_interval_10 -> 10
                             R.id.rb_interval_20 -> 20
+                            R.id.rb_interval_custom -> {
+                                val custom = binding.etIntervalCustom.text.toString().toIntOrNull()
+                                if (custom == null || custom < 1) {
+                                    AlertDialog.Builder(this)
+                                        .setTitle(R.string.error)
+                                        .setMessage(R.string.error_custom_interval)
+                                        .setPositiveButton(R.string.btn_confirm, null)
+                                        .show()
+                                    return
+                                }
+                                custom
+                            }
                             else -> 10
                         }
                         prefs.delayTime = binding.etDelay.text.toString().toInt()
