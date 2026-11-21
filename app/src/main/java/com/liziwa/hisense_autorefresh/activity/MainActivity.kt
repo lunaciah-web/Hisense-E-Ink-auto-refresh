@@ -132,7 +132,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private fun updateIntervalVisibility(monitorAll: Boolean) {
         val v = if (monitorAll) View.VISIBLE else View.GONE
         binding.tvInterval.visibility = v
-        binding.etInterval.visibility = v
         binding.tvDelay.visibility = v
         binding.etDelay.visibility = v
     }
