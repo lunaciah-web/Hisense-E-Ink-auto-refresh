@@ -8,6 +8,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.app.KeyguardManager
+import android.os.PowerManager
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
@@ -143,10 +145,15 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
         super.onCreate()
         XLog.d("无障碍服务创建")
         val filter = IntentFilter(ACTION_CONFIG_CHANGE)
-        // 监听屏幕息屏/亮屏，用于锁屏时重置计数
+        // 监听息屏与真正解锁事件；亮屏不等于已解锁
         filter.addAction(Intent.ACTION_SCREEN_OFF)
         filter.addAction(Intent.ACTION_SCREEN_ON)
+        filter.addAction(Intent.ACTION_USER_PRESENT)
         prefs = AppPreferences.getInstance(applicationContext)
+        // 服务若在锁屏期间启动，也必须先暂停自动刷新，直到用户真正解锁。
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        isScreenLocked = !powerManager.isInteractive || keyguardManager.isKeyguardLocked
         ContextCompat.registerReceiver(
             this,
             myReceiver,
@@ -165,12 +172,17 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
                     XLog.d("屏幕息屏（锁屏），停止周期刷新并重置操作计数")
                     isScreenLocked = true
                     stopPeriodicRefresh()
+                    myHandler.removeMessages(MSG_REFRESH_DISPLAY)
                     clickCount = 0
                     setReadingState(false)
                 }
-                // 亮屏解锁：重置锁屏态并重新安排周期刷新计时
+                // 亮屏可能仍停留在锁屏画面，不在此时恢复刷新。
                 Intent.ACTION_SCREEN_ON -> {
-                    XLog.d("屏幕亮屏（解锁），重置阅读态并重启周期刷新计时")
+                    XLog.d("屏幕亮起，等待真正解锁后恢复自动刷新")
+                }
+                // 仅在真正解锁后恢复 App 自动刷新，让锁屏期间由设备自身管理刷新。
+                Intent.ACTION_USER_PRESENT -> {
+                    XLog.d("用户已解锁，恢复自动刷新计时")
                     isScreenLocked = false
                     setReadingState(false)
                     reschedulePeriodicRefresh()
@@ -183,7 +195,11 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
         override fun handleMessage(msg: Message) {
             super.handleMessage(msg)
             if (msg.what == MSG_REFRESH_DISPLAY) {
-                Utils.refreshScreen(applicationContext)
+                if (serviceSwitch && !isScreenLocked) {
+                    Utils.refreshScreen(applicationContext)
+                } else {
+                    XLog.d("锁屏或服务关闭，取消待执行的操作次数刷新")
+                }
             } else if (msg.what == MSG_DETECT_READING) {
                 detectReadingScreen()
             } else if (msg.what == MSG_PERIODIC_REFRESH) {
@@ -496,10 +512,11 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
      * - 刷新成功后记录刷新时间、清零操作计数，并重新安排下一轮周期。
      */
     private fun doPeriodicRefresh() {
-        // 重新安排下一轮（无论本次是否刷新，都保持周期循环）
-        myHandler.sendEmptyMessageDelayed(MSG_PERIODIC_REFRESH, periodRefresh * 1000L)
-
-        if (!serviceSwitch || isScreenLocked) return
+        // 锁屏期间不执行，也不在后台继续排队；解锁后由 USER_PRESENT 重新启动计时。
+        if (!serviceSwitch || isScreenLocked || periodRefresh <= 0) {
+            stopPeriodicRefresh()
+            return
+        }
         val now = SystemClock.elapsedRealtime()
         if (now - lastRefreshTime < PERIOD_REFRESH_DUPLICATE_MS) {
             XLog.d("周期刷新跳过: 距上次刷新 ${(now - lastRefreshTime)}ms < ${PERIOD_REFRESH_DUPLICATE_MS}ms")
@@ -509,9 +526,11 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
         Utils.refreshScreen(applicationContext)
         lastRefreshTime = SystemClock.elapsedRealtime()
         clickCount = 0 // 周期刷新成功后清零操作统计计数
+        myHandler.sendEmptyMessageDelayed(MSG_PERIODIC_REFRESH, periodRefresh * 1000L)
     }
 
     fun userOperating() {
+        if (isScreenLocked) return
         if (packageName.equals(currentPackage)) return
         // 不以讀屏辨識結果阻擋操作計數：部分墨水屏閱讀器不提供完整無障礙文字，
         // 若依賴讀屏判斷會導致翻頁永遠無法累計。監控範圍仍由 isTarget 控制。
