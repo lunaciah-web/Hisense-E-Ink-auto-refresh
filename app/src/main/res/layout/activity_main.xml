@@ -43,7 +43,7 @@
             style="@style/areaTitleStyle"
             android:text="@string/tv_service_status"
             app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cl_custom_title" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/cl_service_status"
