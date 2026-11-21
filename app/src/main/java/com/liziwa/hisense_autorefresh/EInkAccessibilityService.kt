@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.app.KeyguardManager
-import android.os.PowerManager
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
@@ -151,9 +150,9 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
         filter.addAction(Intent.ACTION_USER_PRESENT)
         prefs = AppPreferences.getInstance(applicationContext)
         // 服务若在锁屏期间启动，也必须先暂停自动刷新，直到用户真正解锁。
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-        isScreenLocked = !powerManager.isInteractive || keyguardManager.isKeyguardLocked
+        // 只依 Android 鎖定狀態判斷，不把電子紙螢幕互動/亮暗狀態當成鎖定依據。
+        isScreenLocked = keyguardManager.isKeyguardLocked
         ContextCompat.registerReceiver(
             this,
             myReceiver,
@@ -300,6 +299,7 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        if (syncLockState()) return
         if (!serviceSwitch) return
 
         try {
@@ -518,10 +518,10 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
             return
         }
         // 先安排下一轮；即使本次因刚刷新过而跳过，也不能让周期计时中断。
-        myHandler.sendEmptyMessageDelayed(MSG_PERIODIC_REFRESH, periodRefresh * 1000L)
         val now = SystemClock.elapsedRealtime()
         if (now - lastRefreshTime < PERIOD_REFRESH_DUPLICATE_MS) {
             XLog.d("周期刷新跳过: 距上次刷新 ${(now - lastRefreshTime)}ms < ${PERIOD_REFRESH_DUPLICATE_MS}ms")
+            myHandler.sendEmptyMessageDelayed(MSG_PERIODIC_REFRESH, periodRefresh * 1000L)
             return
         }
         XLog.d("周期刷新触发，执行全局刷新")
@@ -531,8 +531,27 @@ class EInkAccessibilityService : AccessibilityService(), View.OnTouchListener {
         myHandler.sendEmptyMessageDelayed(MSG_PERIODIC_REFRESH, periodRefresh * 1000L)
     }
 
+    private fun syncLockState(): Boolean {
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        val lockedNow = keyguardManager.isKeyguardLocked
+        if (lockedNow != isScreenLocked) {
+            isScreenLocked = lockedNow
+            if (lockedNow) {
+                XLog.d("检测到仍在锁定画面，暂停刷新")
+                stopPeriodicRefresh()
+                myHandler.removeMessages(MSG_REFRESH_DISPLAY)
+                clickCount = 0
+            } else {
+                XLog.d("检测到已解锁，恢复自动刷新")
+                setReadingState(false)
+                reschedulePeriodicRefresh()
+            }
+        }
+        return lockedNow
+    }
+
     fun userOperating() {
-        if (isScreenLocked) return
+        if (syncLockState()) return
         if (packageName.equals(currentPackage)) return
         // 不以讀屏辨識結果阻擋操作計數：部分墨水屏閱讀器不提供完整無障礙文字，
         // 若依賴讀屏判斷會導致翻頁永遠無法累計。監控範圍仍由 isTarget 控制。
